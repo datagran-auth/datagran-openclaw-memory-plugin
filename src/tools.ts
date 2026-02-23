@@ -109,7 +109,16 @@ export function registerDatagranMemoryTools(api: PluginApi, pluginId = 'datagran
   api.registerTool(
     {
       name: 'datagran_memory_connect',
-      description: 'Create or reuse a Datagran memory connection for an end user.',
+      description: `Create or reuse a Datagran memory connection for an end user.
+
+Call this ONCE per user before ingesting or querying memory. If the user already has a connection, this returns the existing one (idempotent).
+
+You only need endUserExternalId (your unique identifier for the user). The returned connection_id is used by the other datagran_memory tools.
+
+Typical workflow:
+1. datagran_memory_connect (once per user)
+2. datagran_memory_ingest (store data)
+3. datagran_memory_query (ask questions)`,
       parameters: connectToolParameters,
       async execute(_id, params) {
         try {
@@ -142,7 +151,17 @@ export function registerDatagranMemoryTools(api: PluginApi, pluginId = 'datagran
   api.registerTool(
     {
       name: 'datagran_memory_ingest',
-      description: 'Ingest text into Datagran memory via /api/context/compile.',
+      description: `Store relevant new information into a user's Datagran memory so it can be queried in future conversations.
+
+Only use this when the data is genuinely useful long-term — reports, key metrics, documents, decisions, new facts the user shared, etc. Do NOT store trivial messages, duplicates, data already in memory, or temporary results.
+
+Before ingesting, ask yourself: "Would this be useful if the user comes back tomorrow?" If not, skip it.
+
+If you provide endUserExternalId instead of connectionId, the plugin auto-creates a memory connection first.
+
+Large documents (>500k tokens) are automatically routed to long-term RAG storage. Small documents go into short-term memory. This is handled automatically.
+
+After ingesting, call datagran_memory_query to ask questions about the stored content.`,
       parameters: ingestToolParameters,
       async execute(_id, params) {
         try {
@@ -195,7 +214,22 @@ export function registerDatagranMemoryTools(api: PluginApi, pluginId = 'datagran
   api.registerTool(
     {
       name: 'datagran_memory_query',
-      description: 'Query Datagran unified brain memory for an end user.',
+      description: `ALWAYS TRY THIS FIRST before fetching new data or asking the user for information they may have provided before.
+
+This queries a user's Datagran brain — a unified memory that contains all previously stored data for that user. It searches both recent memory (short-term) and historical archives (long-term RAG) automatically.
+
+Critical workflow:
+1. Call datagran_memory_query FIRST with the user's question
+2. If an answer exists → use it, you're done
+3. If "no brain found" → the user has no stored data yet. Use datagran_memory_ingest to store data first, then query again.
+
+The response includes:
+- answer: synthesized answer from memory (if inference is configured)
+- short_term.raw_text: recent raw memory entries
+- long_term: relevant historical snippets with relevance scores
+- freshness: timestamps showing how recent the data is
+
+Use mindState="auto" (default) to let Datagran pick the best retrieval strategy.`,
       parameters: queryToolParameters,
       async execute(_id, params) {
         try {
