@@ -1,27 +1,23 @@
-# Datagran Memory OpenClaw Plugin
+# Datagran Memory — OpenClaw Plugin
 
-OpenClaw plugin that exposes Datagran unified memory through agent tools.
+Give your OpenClaw agent persistent, queryable memory powered by [Datagran Intelligence](https://www.datagran.io/intelligence).
 
-## What it provides
+## Getting Started (3 steps)
 
-- `datagran_memory_connect` -> `POST /api/connections/memory`
-- `datagran_memory_ingest` -> `POST /api/context/compile`
-- `datagran_memory_query` -> `POST /api/context/brain`
-- `/dg-memory-status` command for config sanity check
+### Step 1: Get your Datagran API key
 
-## Install (local dev)
+1. Go to [datagran.io/intelligence](https://www.datagran.io/intelligence) and sign up
+2. Once logged in, go to your dashboard and copy your API key (starts with `sk_live_`)
 
-```bash
-openclaw plugins install -l ./plugins/datagran-memory
-```
-
-## Install (published npm package)
+### Step 2: Install the plugin
 
 ```bash
 openclaw plugins install @datagran/datagran-memory
 ```
 
-## Configure
+### Step 3: Configure
+
+Add this to your OpenClaw config and replace `sk_live_YOUR_KEY` with your actual API key:
 
 ```json
 {
@@ -31,7 +27,81 @@ openclaw plugins install @datagran/datagran-memory
         "enabled": true,
         "config": {
           "baseUrl": "https://www.datagran.io",
-          "apiKey": "sk_live_...",
+          "apiKey": "sk_live_YOUR_KEY"
+        }
+      }
+    }
+  }
+}
+```
+
+Restart the OpenClaw Gateway. Done.
+
+> Tip: `https://www.datagran.io/intelligence` also works as `baseUrl` — the plugin normalizes it automatically.
+
+## What it provides
+
+Three agent tools:
+
+| Tool | What it does | Datagran API |
+|------|-------------|--------------|
+| `datagran_memory_connect` | Create a memory connection for an end user | `POST /api/connections/memory` |
+| `datagran_memory_ingest` | Store text into user memory | `POST /api/context/compile` |
+| `datagran_memory_query` | Ask questions against user memory | `POST /api/context/brain` |
+
+Plus a `/dg-memory-status` command to verify your config is working.
+
+## Usage examples
+
+### Connect a user
+
+```json
+{
+  "tool": "datagran_memory_connect",
+  "params": {
+    "endUserExternalId": "user-123",
+    "email": "user@example.com"
+  }
+}
+```
+
+### Store text into memory
+
+```json
+{
+  "tool": "datagran_memory_ingest",
+  "params": {
+    "endUserExternalId": "user-123",
+    "name": "Support Notes",
+    "text": "Long text content here...",
+    "type": "raw_text"
+  }
+}
+```
+
+### Query memory
+
+```json
+{
+  "tool": "datagran_memory_query",
+  "params": {
+    "endUserExternalId": "user-123",
+    "question": "What are this user's pain points?"
+  }
+}
+```
+
+## Advanced config (optional)
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "datagran-memory": {
+        "enabled": true,
+        "config": {
+          "baseUrl": "https://www.datagran.io",
+          "apiKey": "sk_live_YOUR_KEY",
           "defaults": {
             "mindState": "auto",
             "maxTokens": 512,
@@ -48,53 +118,17 @@ openclaw plugins install @datagran/datagran-memory
 }
 ```
 
-Restart OpenClaw Gateway after config changes.
+## Links
 
-Note: if you paste `https://www.datagran.io/intelligence` as `baseUrl`, the plugin normalizes it to `https://www.datagran.io`.
+- [Datagran Intelligence](https://www.datagran.io/intelligence) — sign up and get your API key
+- [GitHub](https://github.com/datagran-auth/datagran-openclaw-memory-plugin) — source code
+- [npm](https://www.npmjs.com/package/@datagran/datagran-memory) — package registry
 
-## Tool examples
-
-### 1) Connect user memory
-
-```json
-{
-  "tool": "datagran_memory_connect",
-  "params": {
-    "endUserExternalId": "user-123",
-    "email": "user@example.com"
-  }
-}
-```
-
-### 2) Ingest text
-
-```json
-{
-  "tool": "datagran_memory_ingest",
-  "params": {
-    "endUserExternalId": "user-123",
-    "name": "Support Notes",
-    "text": "Long text content...",
-    "type": "raw_text"
-  }
-}
-```
-
-### 3) Query memory
-
-```json
-{
-  "tool": "datagran_memory_query",
-  "params": {
-    "endUserExternalId": "user-123",
-    "question": "What are this user's pain points?",
-    "mindState": "auto"
-  }
-}
-```
-
-## Test
+## Development
 
 ```bash
-npx tsx --test plugins/datagran-memory/src/index.test.ts
+git clone https://github.com/datagran-auth/datagran-openclaw-memory-plugin.git
+cd datagran-openclaw-memory-plugin
+npm install
+npm test
 ```
