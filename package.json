@@ -1,6 +1,6 @@
 {
   "name": "@datagran/datagran-memory",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "OpenClaw plugin that connects to Datagran unified memory APIs.",
   "license": "MIT",
   "type": "module",
@@ -8,6 +8,7 @@
   "files": [
     "src",
     "openclaw.plugin.json",
+    "clawbot.plugin.json",
     "README.md"
   ],
   "openclaw": {
