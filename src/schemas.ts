@@ -29,14 +29,32 @@ const QueryIncludeSchema = z
   })
   .strict();
 
-const ConnectInputSchema = z.object({
-  endUserExternalId: z.string().min(1),
-  email: z.string().email().optional(),
-  metadata: z.record(z.unknown()).optional(),
-});
+const ConnectInputSchema = z.preprocess(
+  (raw) => {
+    if (!raw || typeof raw !== 'object') return raw;
+    const obj = raw as Record<string, unknown>;
+    return {
+      ...obj,
+      endUserExternalId: obj.endUserExternalId ?? obj.end_user_external_id,
+    };
+  },
+  z.object({
+    endUserExternalId: z.string().min(1),
+    email: z.string().email().optional(),
+    metadata: z.record(z.unknown()).optional(),
+  })
+);
 
 const IngestInputSchema = z
-  .object({
+  .preprocess((raw) => {
+    if (!raw || typeof raw !== 'object') return raw;
+    const obj = raw as Record<string, unknown>;
+    return {
+      ...obj,
+      connectionId: obj.connectionId ?? obj.connection_id,
+      endUserExternalId: obj.endUserExternalId ?? obj.end_user_external_id,
+    };
+  }, z.object({
     connectionId: z.string().uuid().optional(),
     endUserExternalId: z.string().min(1).optional(),
     email: z.string().email().optional(),
@@ -45,13 +63,23 @@ const IngestInputSchema = z
     type: z.enum(SOURCE_TYPES).default('raw_text'),
     ref: z.string().optional(),
     metadata: z.record(z.unknown()).optional(),
-  })
+  }))
   .refine((v) => Boolean(v.connectionId || v.endUserExternalId), {
     message: 'Provide connectionId or endUserExternalId',
   });
 
 const QueryInputSchema = z
-  .object({
+  .preprocess((raw) => {
+    if (!raw || typeof raw !== 'object') return raw;
+    const obj = raw as Record<string, unknown>;
+    return {
+      ...obj,
+      connectionId: obj.connectionId ?? obj.connection_id,
+      endUserExternalId: obj.endUserExternalId ?? obj.end_user_external_id,
+      mindState: obj.mindState ?? obj.mind_state,
+      maxTokens: obj.maxTokens ?? obj.max_tokens,
+    };
+  }, z.object({
     question: z.string().min(1).max(100_000),
     connectionId: z.string().uuid().optional(),
     endUserExternalId: z.string().min(1).optional(),
@@ -60,7 +88,7 @@ const QueryInputSchema = z
     include: QueryIncludeSchema.optional(),
     maxTokens: z.number().int().min(1).max(4096).optional(),
     temperature: z.number().min(0).max(2).optional(),
-  })
+  }))
   .refine((v) => Boolean(v.connectionId || v.endUserExternalId), {
     message: 'Provide connectionId or endUserExternalId',
   });
@@ -95,12 +123,13 @@ export type PluginConfig = z.infer<typeof PluginConfigSchema>;
 export const connectToolParameters: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
-  required: ['endUserExternalId'],
   properties: {
     endUserExternalId: { type: 'string', description: 'Your external end-user identifier.' },
+    end_user_external_id: { type: 'string', description: 'Snake_case alias of endUserExternalId.' },
     email: { type: 'string', format: 'email' },
     metadata: { type: 'object', additionalProperties: true },
   },
+  anyOf: [{ required: ['endUserExternalId'] }, { required: ['end_user_external_id'] }],
 };
 
 export const ingestToolParameters: Record<string, unknown> = {
@@ -113,7 +142,9 @@ export const ingestToolParameters: Record<string, unknown> = {
       format: 'uuid',
       description: 'Datagran connection id. If missing, endUserExternalId is required for auto-connect.',
     },
+    connection_id: { type: 'string', format: 'uuid', description: 'Snake_case alias of connectionId.' },
     endUserExternalId: { type: 'string' },
+    end_user_external_id: { type: 'string', description: 'Snake_case alias of endUserExternalId.' },
     email: { type: 'string', format: 'email' },
     name: { type: 'string', minLength: 1, maxLength: 255 },
     text: { type: 'string', minLength: 100, maxLength: 10000000 },
@@ -121,7 +152,12 @@ export const ingestToolParameters: Record<string, unknown> = {
     ref: { type: 'string' },
     metadata: { type: 'object', additionalProperties: true },
   },
-  anyOf: [{ required: ['connectionId'] }, { required: ['endUserExternalId'] }],
+  anyOf: [
+    { required: ['connectionId'] },
+    { required: ['connection_id'] },
+    { required: ['endUserExternalId'] },
+    { required: ['end_user_external_id'] },
+  ],
 };
 
 export const queryToolParameters: Record<string, unknown> = {
@@ -131,8 +167,11 @@ export const queryToolParameters: Record<string, unknown> = {
   properties: {
     question: { type: 'string', minLength: 1, maxLength: 100000 },
     connectionId: { type: 'string', format: 'uuid' },
+    connection_id: { type: 'string', format: 'uuid', description: 'Snake_case alias of connectionId.' },
     endUserExternalId: { type: 'string' },
+    end_user_external_id: { type: 'string', description: 'Snake_case alias of endUserExternalId.' },
     mindState: { type: 'string', enum: [...MIND_STATES] },
+    mind_state: { type: 'string', enum: [...MIND_STATES], description: 'Snake_case alias of mindState.' },
     providers: { type: 'array', items: { type: 'string' } },
     include: {
       type: 'object',
@@ -145,9 +184,15 @@ export const queryToolParameters: Record<string, unknown> = {
       },
     },
     maxTokens: { type: 'integer', minimum: 1, maximum: 4096 },
+    max_tokens: { type: 'integer', minimum: 1, maximum: 4096, description: 'Snake_case alias of maxTokens.' },
     temperature: { type: 'number', minimum: 0, maximum: 2 },
   },
-  anyOf: [{ required: ['connectionId'] }, { required: ['endUserExternalId'] }],
+  anyOf: [
+    { required: ['connectionId'] },
+    { required: ['connection_id'] },
+    { required: ['endUserExternalId'] },
+    { required: ['end_user_external_id'] },
+  ],
 };
 
 export const pluginConfigJsonSchema: Record<string, unknown> = {

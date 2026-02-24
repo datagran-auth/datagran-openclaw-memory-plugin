@@ -25,6 +25,10 @@ function asBoolean(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function maskApiKey(key: string): string {
   if (key.length <= 8) return '***';
   return `${key.slice(0, 5)}...${key.slice(-3)}`;
@@ -48,6 +52,63 @@ function normalizeError(error: unknown): ToolResult {
   }
 
   if (error instanceof DatagranApiError) {
+    const lower = error.message.toLowerCase();
+    if (lower.includes('end user not found') || lower.includes('connection not found')) {
+      const guidance = [
+        `Datagran API error (${error.status}): ${error.message}`,
+        '',
+        'Troubleshooting:',
+        '1) Use the SAME apiKey for connect, ingest, and query (partner mismatch is the #1 cause).',
+        '2) Prefer connectionId for queries when you have it.',
+        '3) If using endUserExternalId, make sure it exactly matches the value used when data was ingested.',
+        '4) Call datagran_memory_connect first, then query using returned connection_id.',
+      ].join('\n');
+
+      return success(guidance, {
+        success: false,
+        status: error.status,
+        error: error.message,
+        body: error.body,
+        hints: {
+          likely_causes: [
+            'api_key_partner_mismatch',
+            'identifier_mismatch',
+            'query_before_connect',
+          ],
+        },
+      });
+    }
+
+    if (lower.includes('no brain found')) {
+      const guidance = [
+        `Datagran API error (${error.status}): ${error.message}`,
+        '',
+        'What this usually means:',
+        '- This user has no ingested memory yet, OR',
+        '- You queried a different user identifier than the one used during ingest.',
+        '',
+        'Recommended flow:',
+        '1) Run datagran_memory_connect for this user and keep the returned connection_id.',
+        '2) Run datagran_memory_ingest using that same connection_id.',
+        '3) Query again with datagran_memory_query using the same connection_id.',
+        '4) If ingest returned status=accepted, wait 2-5s and retry ingest/query.',
+      ].join('\n');
+
+      return success(guidance, {
+        success: false,
+        status: error.status,
+        error: error.message,
+        body: error.body,
+        hints: {
+          likely_causes: [
+            'empty_memory_for_user',
+            'identifier_mismatch',
+            'ingest_not_completed_yet',
+          ],
+        },
+      });
+    }
+
     const message = `Datagran API error (${error.status}): ${error.message}`;
     return success(message, {
       success: false,
@@ -180,17 +241,38 @@ After ingesting, call datagran_memory_query to ask questions about the stored co
             autoConnected = Boolean(connectionId);
           }
 
-          const compileResult = await client.ingestText({
+          let compileResult = await client.ingestText({
             ...input,
             connectionId,
           });
 
+          // If ingest is accepted but not completed yet (e.g. temporary storage timeout),
+          // retry a couple of times so users don't need to manually retry immediately.
+          const maxAcceptedRetries = 2;
+          for (let attempt = 0; attempt < maxAcceptedRetries; attempt += 1) {
+            const status = asString((compileResult as Record<string, unknown>).status);
+            const msg = (asString((compileResult as Record<string, unknown>).message) ?? '').toLowerCase();
+            const looksAccepted = status === 'accepted' || msg.includes('retry') || msg.includes('temporarily unavailable');
+            if (!looksAccepted) break;
+            await sleep(2000);
+            compileResult = await client.ingestText({
+              ...input,
+              connectionId,
+            });
+          }
+
           const storedAs = asString(compileResult.stored_as) ?? 'unknown';
           const traceId = asString(compileResult.trace_id) ?? '(none)';
-          const message = asString(compileResult.message) ?? 'Ingest request accepted.';
+          const ingestStatus = asString((compileResult as Record<string, unknown>).status);
+          const message =
+            asString(compileResult.message) ??
+            (ingestStatus === 'accepted'
+              ? 'Ingest accepted but not fully completed yet. Retry query in a few seconds.'
+              : 'Ingest request accepted.');
 
           const text = [
             `stored_as: ${storedAs}`,
+            `status: ${ingestStatus ?? 'ok'}`,
             `trace_id: ${traceId}`,
             `connection_id: ${connectionId ?? '(none)'}`,
             `auto_connected: ${autoConnected}`,

@@ -39,6 +39,40 @@ Restart the OpenClaw Gateway. Done.
 
 > Tip: `https://www.datagran.io/intelligence` also works as `baseUrl` — the plugin normalizes it automatically.
 
+## Troubleshooting
+
+### Config invalid: plugin manifest not found in `.../skills/datagran-memory/openclaw.plugin.json`
+
+This means the user configured a **skills path** as a **plugin path**.  
+The plugin must be installed from npm or loaded from the plugin root folder, not from `skills/...`.
+
+Fix:
+
+1. Remove any `plugins.load.paths` entry pointing to `.../skills/datagran-memory`
+2. Reinstall cleanly:
+
+```bash
+openclaw plugins uninstall datagran-memory
+openclaw plugins install @datagran/datagran-memory
+```
+
+3. Keep only `plugins.entries.datagran-memory.config` in config
+4. Restart the gateway
+
+### Datagran returns \"End user not found\"
+
+Most common causes:
+
+- API key mismatch (created data with one key/partner, querying with another)
+- Identifier mismatch (different `endUserExternalId` than ingest step)
+- Querying without the correct `connectionId`
+
+Recommended workflow:
+
+1. `datagran_memory_connect` with your `endUserExternalId`
+2. `datagran_memory_ingest` using returned `connection_id`
+3. `datagran_memory_query` using that same `connectionId`
+
 ## What it provides
 
 Three agent tools:

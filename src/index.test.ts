@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { DatagranApiError, DatagranClient } from './datagranClient';
-import { resolvePluginConfig } from './schemas';
+import { parseConnectInput, parseIngestInput, parseQueryInput, resolvePluginConfig } from './schemas';
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -52,6 +52,30 @@ test('resolvePluginConfig normalizes /intelligence URL to API origin', () => {
   });
 
   assert.equal(config.baseUrl, 'https://www.datagran.io');
+});
+
+test('schemas accept snake_case aliases', () => {
+  const connect = parseConnectInput({
+    end_user_external_id: 'external_1',
+  });
+  assert.equal(connect.endUserExternalId, 'external_1');
+
+  const ingest = parseIngestInput({
+    connection_id: '11111111-1111-4111-8111-111111111111',
+    name: 'Alias Test',
+    text: 'x'.repeat(120),
+  });
+  assert.equal(ingest.connectionId, '11111111-1111-4111-8111-111111111111');
+
+  const query = parseQueryInput({
+    question: 'What happened?',
+    end_user_external_id: 'external_1',
+    mind_state: 'auto',
+    max_tokens: 321,
+  });
+  assert.equal(query.endUserExternalId, 'external_1');
+  assert.equal(query.mindState, 'auto');
+  assert.equal(query.maxTokens, 321);
 });
 
 test('createMemoryConnection sends x-api-key and expected body', async () => {
