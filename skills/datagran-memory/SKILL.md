@@ -12,7 +12,9 @@ You have access to Datagran persistent memory for end users. This lets you store
 
 - `datagran_memory_query` — Ask a question against a user's memory
 - `datagran_memory_ingest` — Store text into a user's memory
-- `datagran_memory_connect` — Create a memory connection (usually auto-handled)
+- `datagran_memory_connect` — Create a memory connection (auto-handled by ingest/query)
+
+**CRITICAL**: Always pass `endUserExternalId` to ingest and query tools. The plugin automatically ensures a memory connection exists. You do NOT need to call `datagran_memory_connect` separately — ingest and query handle it internally. This prevents data from being stored without a user link.
 
 ## Workflow
 

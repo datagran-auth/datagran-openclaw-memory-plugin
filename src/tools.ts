@@ -218,7 +218,7 @@ Only use this when the data is genuinely useful long-term — reports, key metri
 
 Before ingesting, ask yourself: "Would this be useful if the user comes back tomorrow?" If not, skip it.
 
-If you provide endUserExternalId instead of connectionId, the plugin auto-creates a memory connection first.
+IMPORTANT: Always provide endUserExternalId. The plugin automatically ensures a memory connection exists and passes the correct connection_id to Datagran. This guarantees data lands in the user's brain (not in a disconnected standalone memory).
 
 Large documents (>500k tokens) are automatically routed to long-term RAG storage. Small documents go into short-term memory. This is handled automatically.
 
@@ -229,16 +229,29 @@ After ingesting, call datagran_memory_query to ask questions about the stored co
           const input = parseIngestInput(params);
           const client = createClient(api.config, pluginId);
 
+          // ALWAYS ensure a valid connection_id before ingesting.
+          // Without this, data goes into standalone compiled memories
+          // instead of the user's brain — which is the #1 user mistake.
           let connectionId = input.connectionId;
           let autoConnected = false;
 
-          if (!connectionId && input.endUserExternalId) {
+          if (input.endUserExternalId) {
             const connection = await client.createMemoryConnection({
               endUserExternalId: input.endUserExternalId,
               email: input.email,
             });
-            connectionId = asString(connection.connection_id) ?? undefined;
-            autoConnected = Boolean(connectionId);
+            const resolvedId = asString(connection.connection_id);
+            if (resolvedId) {
+              connectionId = resolvedId;
+              autoConnected = !input.connectionId;
+            }
+          }
+
+          if (!connectionId) {
+            return success(
+              'Cannot ingest: no connection_id resolved. Provide endUserExternalId so the plugin can auto-connect, or pass a valid connectionId.',
+              { success: false, error: 'missing_connection_id' }
+            );
           }
 
           let compileResult = await client.ingestText({
@@ -319,8 +332,22 @@ Use mindState="auto" (default) to let Datagran pick the best retrieval strategy.
           const config = resolvePluginConfig(api.config, pluginId);
           const client = new DatagranClient(config);
 
+          // Auto-resolve connection_id when endUserExternalId is provided.
+          // This ensures queries always hit the correct user's brain.
+          let connectionId = input.connectionId;
+          if (input.endUserExternalId) {
+            const connection = await client.createMemoryConnection({
+              endUserExternalId: input.endUserExternalId,
+            });
+            const resolvedId = asString(connection.connection_id);
+            if (resolvedId) {
+              connectionId = resolvedId;
+            }
+          }
+
           const response = await client.queryBrain({
             ...input,
+            connectionId,
             mindState: input.mindState ?? config.defaults.mindState,
             maxTokens: input.maxTokens ?? config.defaults.maxTokens,
             temperature: input.temperature ?? config.defaults.temperature,
